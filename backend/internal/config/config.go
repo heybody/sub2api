@@ -122,6 +122,9 @@ type PluginConfig struct {
 	DataDir              string            `mapstructure:"data_dir"`
 	AllowUnsigned        bool              `mapstructure:"allow_unsigned"`
 	TrustedPublishers    map[string]string `mapstructure:"trusted_publishers"`
+	// AccountProbePlugins 列出可额外读取 OpenAI 非 OAuth 账号（setup-token / apikey / cpr）
+	// 出站身份的插件 ID，用于只测试不转发的探测插件；清单格式不变，标准宿主忽略此项。
+	AccountProbePlugins []string `mapstructure:"account_probe_plugins"`
 	MaxUploadBytes       int64             `mapstructure:"max_upload_bytes"`
 	MaxUncompressedBytes int64             `mapstructure:"max_uncompressed_bytes"`
 	StartTimeoutSeconds  int               `mapstructure:"start_timeout_seconds"`
@@ -2368,6 +2371,7 @@ func setDefaults() {
 	viper.SetDefault("plugins.data_dir", "")
 	viper.SetDefault("plugins.allow_unsigned", false)
 	viper.SetDefault("plugins.trusted_publishers", map[string]string{})
+	viper.SetDefault("plugins.account_probe_plugins", []string{})
 	viper.SetDefault("plugins.max_upload_bytes", int64(128*1024*1024))
 	viper.SetDefault("plugins.max_uncompressed_bytes", int64(256*1024*1024))
 	viper.SetDefault("plugins.start_timeout_seconds", 15)

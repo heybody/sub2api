@@ -138,10 +138,10 @@ func (s *OpenAIGatewayService) ResolvePluginOutboundIdentity(ctx context.Context
 	if !scope.Contains(account.Platform, account.Type) {
 		return nil, nil
 	}
-	// Credential minting is OpenAI-specific; degrade to (nil, nil) for kinds this
-	// resolver cannot issue tokens for.
-	if account.Type != AccountTypeOAuth || !account.IsOpenAIOAuthLike() {
-		return nil, nil
+	// Credential minting is OpenAI-specific; non-Codex kinds (apikey / cpr) are
+	// only reachable through an account-probe grant, see plugin_account_probe.go.
+	if !account.IsOpenAIOAuthLike() {
+		return s.resolvePluginProbeIdentity(ctx, account)
 	}
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
@@ -157,11 +157,13 @@ func (s *OpenAIGatewayService) ResolvePluginOutboundIdentity(ctx context.Context
 	ensureCodexIdentityHeaders(headers)
 	s.enforceCodexClientIdentity(nil, headers, account)
 	return &PluginOutboundIdentity{
-		AccountID:   account.ID,
-		Platform:    account.Platform,
-		AccountType: account.Type,
-		ProxyURL:    resolveAccountProxyURL(account),
-		Token:       token,
-		Headers:     headers,
+		AccountID:    account.ID,
+		Platform:     account.Platform,
+		AccountType:  account.Type,
+		ProxyURL:     resolveAccountProxyURL(account),
+		Token:        token,
+		Headers:      headers,
+		EndpointURL:  chatgptCodexURL,
+		WireProtocol: PluginWireProtocolCodex,
 	}, nil
 }
