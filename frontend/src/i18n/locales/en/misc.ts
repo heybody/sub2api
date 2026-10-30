@@ -60,7 +60,10 @@ export default {
     upstreamLabel: 'Upstream',
     forkLabel: 'Fork',
     upstreamUpdateAvailable: 'Upstream released v{version}. Notice only: updates come through the fork.',
-    upstreamUpToDate: 'Upstream is up to date'
+    upstreamUpToDate: 'Upstream is up to date',
+    caresLabel: 'Local patch',
+    caresUpdateAvailable: 'Patched build v{version} is available. Update via the SJ upgrade procedure (no one-click update).',
+    caresUpToDate: 'Patched build is up to date'
   },
 
   // Recharge / Subscription Page
