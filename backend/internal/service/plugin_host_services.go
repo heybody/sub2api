@@ -45,6 +45,10 @@ type PluginOutboundIdentity struct {
 	ProxyURL    string
 	Token       string
 	Headers     http.Header
+	// EndpointURL / WireProtocol 是宿主按自身转发逻辑算出的 Responses 目标与线协议
+	// （codex / responses / chat_completions），插件据此发请求，不自行猜测地址。
+	EndpointURL  string
+	WireProtocol string
 }
 
 // PluginAccountInfo 是宿主向插件公开的、单个账号的「可读、非机密」视图。它绝不包含
@@ -289,13 +293,15 @@ func (s *pluginHostServiceServer) ResolveOutboundIdentity(ctx context.Context, r
 		return &pluginv1.ResolveOutboundIdentityResponse{Found: false}, nil
 	}
 	return &pluginv1.ResolveOutboundIdentityResponse{
-		Found:       true,
-		AccountId:   identity.AccountID,
-		Platform:    identity.Platform,
-		AccountType: identity.AccountType,
-		ProxyUrl:    identity.ProxyURL,
-		Token:       identity.Token,
-		Headers:     headersToPlugin(identity.Headers),
+		Found:        true,
+		AccountId:    identity.AccountID,
+		Platform:     identity.Platform,
+		AccountType:  identity.AccountType,
+		ProxyUrl:     identity.ProxyURL,
+		Token:        identity.Token,
+		Headers:      headersToPlugin(identity.Headers),
+		EndpointUrl:  identity.EndpointURL,
+		WireProtocol: identity.WireProtocol,
 	}, nil
 }
 

@@ -271,4 +271,9 @@ message ResolveOutboundIdentityResponse {
   string proxy_url = 5;
   string token = 6;
   map<string, HeaderValues> headers = 7;
+  // endpoint_url is the Responses URL the host itself would target for this
+  // account; wire_protocol is codex / responses / chat_completions. Older hosts
+  // leave both empty, which means the ChatGPT Codex endpoint (OAuth only).
+  string endpoint_url = 8;
+  string wire_protocol = 9;
 }

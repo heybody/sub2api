@@ -1063,7 +1063,7 @@ func (m *PluginManager) buildHostServices(installation *PluginInstallation) plug
 	if m.kvStore == nil || installation == nil || strings.TrimSpace(installation.PluginKey) == "" {
 		return nil
 	}
-	scope := pluginAccountScopeFromManifest(installation.Manifest)
+	scope := m.withAccountProbeGrant(installation, pluginAccountScopeFromManifest(installation.Manifest))
 	var directory PluginAccountDirectory
 	if !scope.Empty() {
 		m.mu.Lock()
