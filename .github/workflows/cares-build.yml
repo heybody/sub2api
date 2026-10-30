@@ -1,0 +1,61 @@
+# SJ 本地补丁构建：单测 + linux_arm64 嵌前端二进制。
+# 推分支只测试并上传构建产物；推 v*-cares.* 标签额外发布 Release（tar.gz + checksums.txt）。
+# 上游 fork 原有工作流在本分支已删除，避免重复发布或同步覆盖。
+name: cares-build
+
+on:
+  push:
+    branches: ['cares/**']
+    tags: ['v*-cares.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: 单元测试
+        working-directory: backend
+        run: go test -tags unit ./internal/config/ ./internal/service/ ./pkg/pluginapi/... -count=1
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: 前端检查与构建
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run typecheck
+          pnpm exec vitest run src/components/common/__tests__/VersionBadge.spec.ts src/i18n/__tests__/localeKeyCompleteness.spec.ts src/i18n/__tests__/localesMessageCompile.spec.ts
+          pnpm run build
+      - name: 构建 linux_arm64
+        id: build
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then V="${GITHUB_REF_NAME#v}"; else V="$(cat backend/cmd/server/VERSION)-dev.${GITHUB_SHA::7}"; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          mkdir -p dist
+          (cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags embed -trimpath \
+            -ldflags "-s -w -X main.Version=$V -X main.Commit=$GITHUB_SHA -X main.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.BuildType=release" \
+            -o ../dist/sub2api ./cmd/server)
+          cd dist && tar -czf "sub2api_${V}_linux_arm64.tar.gz" sub2api && rm sub2api
+          sha256sum *.tar.gz > checksums.txt && cat checksums.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sub2api-${{ steps.build.outputs.version }}-linux-arm64
+          path: dist/
+      - name: 发布 Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes "SJ 本地补丁构建（account-probe），基于 ${GITHUB_REF_NAME%-cares.*}"
