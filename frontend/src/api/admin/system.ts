@@ -30,6 +30,7 @@ export interface VersionInfo {
   warning?: string
   build_type: string // "source" for manual builds, "release" for CI builds
   upstream?: UpstreamVersionInfo
+  cares?: UpstreamVersionInfo // 本地补丁版（-cares.N）才有
 }
 
 /**
