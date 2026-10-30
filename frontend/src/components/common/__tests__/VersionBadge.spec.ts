@@ -12,6 +12,7 @@ const appStore = reactive({
   releaseInfo: null as null | Record<string, string>,
   buildType: 'release',
   upstreamVersion: null as null | Record<string, unknown>,
+  caresVersion: null as null | Record<string, unknown>,
   fetchVersion: vi.fn()
 })
 const authStore = reactive({ isAdmin: true })
@@ -42,6 +43,7 @@ describe('VersionBadge', () => {
     appStore.currentVersion = '0.2.7-klno.4'
     appStore.hasUpdate = false
     appStore.upstreamVersion = null
+    appStore.caresVersion = null
   })
 
   it('shows upstream X.Y.Z and the fork klno sequence; an upstream release lights the original amber ping', () => {
@@ -76,6 +78,34 @@ describe('VersionBadge', () => {
     expect(upstream.text()).toBe('v0.2.7')
     expect(upstream.attributes('href')).toBe('https://github.com/Wei-Shaw/sub2api/releases')
     expect(upstream.find('.animate-ping').exists()).toBe(false)
+  })
+
+  it('splits a local patch build into upstream, klno and cares badges with separate states', () => {
+    appStore.currentVersion = '0.2.19-klno.1-cares.1'
+    appStore.caresVersion = {
+      current_version: '0.2.19-klno.1-cares.1',
+      latest_version: '0.2.19-klno.1-cares.2',
+      has_update: true,
+      html_url: 'https://github.com/heybody/sub2api/releases/tag/v0.2.19-klno.1-cares.2'
+    }
+    const wrapper = mount(VersionBadge, { global: { stubs: { Icon: true } } })
+
+    expect(wrapper.get('[data-testid="version-upstream"]').text()).toBe('v0.2.19')
+    const fork = wrapper.get('[data-testid="version-fork"]')
+    expect(fork.text()).toBe('klno.1')
+    expect(fork.attributes('title')).toBe('version.forkLabel v0.2.19-klno.1：version.upToDate')
+    expect(fork.find('.animate-ping').exists()).toBe(false)
+    const cares = wrapper.get('[data-testid="version-cares"]')
+    expect(cares.text()).toBe('cares.1')
+    expect(cares.attributes('href')).toBe(
+      'https://github.com/heybody/sub2api/releases/tag/v0.2.19-klno.1-cares.2'
+    )
+    expect(cares.find('.animate-ping').exists()).toBe(true)
+  })
+
+  it('has no cares badge on non-patched builds', () => {
+    const wrapper = mount(VersionBadge, { global: { stubs: { Icon: true } } })
+    expect(wrapper.find('[data-testid="version-cares"]').exists()).toBe(false)
   })
 
   it('shows the full version on builds without a klno suffix', () => {

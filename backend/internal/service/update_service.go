@@ -91,6 +91,8 @@ type UpdateInfo struct {
 	BuildType      string       `json:"build_type"` // "source" or "release"
 	// Upstream 是上游仓库的只读监测结果；上面的字段都是二开自己的。
 	Upstream *UpstreamUpdateInfo `json:"upstream,omitempty"`
+	// Cares 是本地补丁版（-cares.N）的监测结果，只在补丁版上返回，见 update_cares.go。
+	Cares *UpstreamUpdateInfo `json:"cares,omitempty"`
 }
 
 // UpstreamUpdateInfo 上游版本监测：只提示，不提供升级。
@@ -166,10 +168,11 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 			LatestVersion:  s.currentVersion,
 			HasUpdate:      false,
 			Warning:        err.Error(),
-			BuildType:      s.buildType,
+			BuildType:      s.reportedBuildType(),
 		}, nil
 	}
 	info.Upstream = s.fetchUpstreamInfo(ctx)
+	info.Cares = s.fetchCaresInfo(ctx)
 
 	// Cache result
 	s.saveToCache(ctx, info)
@@ -200,6 +203,9 @@ func (s *UpdateService) upstreamInfo(latest, htmlURL, publishedAt string) *Upstr
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
+	if isCaresVersion(s.currentVersion) {
+		return ErrCaresManualUpdate
+	}
 	info, err := s.CheckUpdate(ctx, true)
 	if err != nil {
 		return err
@@ -344,6 +350,9 @@ func (s *UpdateService) Rollback() error {
 // strictly older than the current version (the current version itself is excluded),
 // newest first. Draft and prerelease entries are skipped.
 func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
+	if isCaresVersion(s.currentVersion) {
+		return nil, ErrCaresManualUpdate
+	}
 	releases, err := s.fetchRollbackCandidates(ctx)
 	if err != nil {
 		return nil, err
@@ -364,6 +373,9 @@ func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVer
 // The target must be one of the versions returned by ListRollbackVersions;
 // anything else (including the current version) is rejected.
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	if isCaresVersion(s.currentVersion) {
+		return ErrCaresManualUpdate
+	}
 	target := strings.TrimPrefix(strings.TrimSpace(version), "v")
 	if target == "" {
 		return ErrRollbackVersionNotAllowed
@@ -465,7 +477,7 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			Assets:      assets,
 		},
 		Cached:    false,
-		BuildType: s.buildType,
+		BuildType: s.reportedBuildType(),
 	}, nil
 }
 
@@ -651,12 +663,16 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		HasUpdate:      compareVersions(s.currentVersion, cached.Latest) < 0,
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
-		BuildType:      s.buildType,
+		BuildType:      s.reportedBuildType(),
 	}
 	// 当前版本可能在缓存期内变了（升级后重启），has_update 按当前版本重算。
 	if u := cached.Upstream; u != nil {
 		info.Upstream = s.upstreamInfo(u.LatestVersion, u.HTMLURL, u.PublishedAt)
 		info.Upstream.Warning = u.Warning
+	}
+	if c := cached.Cares; c != nil && isCaresVersion(s.currentVersion) {
+		info.Cares = s.caresInfo(c.LatestVersion, c.HTMLURL, c.PublishedAt)
+		info.Cares.Warning = c.Warning
 	}
 	return info, nil
 }
@@ -665,6 +681,7 @@ type updateCacheData struct {
 	Latest      string              `json:"latest"`
 	ReleaseInfo *ReleaseInfo        `json:"release_info"`
 	Upstream    *UpstreamUpdateInfo `json:"upstream,omitempty"`
+	Cares       *UpstreamUpdateInfo `json:"cares,omitempty"`
 	Timestamp   int64               `json:"timestamp"`
 }
 
@@ -673,6 +690,7 @@ func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
 		Latest:      info.LatestVersion,
 		ReleaseInfo: info.ReleaseInfo,
 		Upstream:    info.Upstream,
+		Cares:       info.Cares,
 		Timestamp:   time.Now().Unix(),
 	}
 
@@ -706,6 +724,8 @@ func parseVersion(v string) [4]int {
 			result[i] = parsed
 		}
 	}
+	// 本地补丁版形如 X.Y.Z-klno.N-cares.M：二开序号只取 klno 段，cares 段由 caresNumber 单独比较。
+	suffix, _, _ = strings.Cut(suffix, "-")
 	if n, ok := strings.CutPrefix(suffix, "klno."); ok {
 		if parsed, err := strconv.Atoi(n); err == nil {
 			result[3] = parsed

@@ -50,6 +50,29 @@
             <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
           </span>
         </button>
+        <!-- cares: 本地补丁版序号，点开是补丁版发布页；补丁版不支持一键升级 -->
+        <a
+          v-if="caresBadgeText"
+          data-testid="version-cares"
+          :href="caresVersion?.html_url || CARES_RELEASES_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
+          :class="[
+            caresHasUpdate
+              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-800 dark:text-dark-400 dark:hover:bg-dark-700'
+          ]"
+          :title="caresTitle"
+        >
+          <span>{{ caresBadgeText }}</span>
+          <span v-if="caresHasUpdate" class="relative flex h-2 w-2">
+            <span
+              class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"
+            ></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+          </span>
+        </a>
       </div>
 
       <!-- Dropdown -->
@@ -682,6 +705,7 @@ const GITHUB_REPO = 'KlN-4096/sub2api'
 // GHCR image published by the fork's CI (tags carry no "v" prefix, e.g. ghcr.io/kln-4096/sub2api:0.2.7-klno.4)
 const DOCKER_IMAGE = 'ghcr.io/kln-4096/sub2api'
 const UPSTREAM_RELEASES_URL = 'https://github.com/Wei-Shaw/sub2api/releases'
+const CARES_RELEASES_URL = 'https://github.com/heybody/sub2api/releases'
 
 const { t } = useI18n()
 
@@ -705,10 +729,11 @@ const hasUpdate = computed(() => appStore.hasUpdate)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
 const upstreamVersion = computed(() => appStore.upstreamVersion)
+const caresVersion = computed(() => appStore.caresVersion)
 
 // klno: 左上角拆成两处：上游只显示所基于的 X.Y.Z，二开只显示 klno 序号；标签与完整版本放进提示。
 // 上游版本从当前版本推出来，不等更新检查返回；检查结果只决定有没有新版提示。
-const upstreamBaseVersion = computed(() => currentVersion.value.replace(/-klno\.\d+$/, ''))
+const upstreamBaseVersion = computed(() => currentVersion.value.replace(/-.*$/, ''))
 const upstreamHasUpdate = computed(() => upstreamVersion.value?.has_update === true)
 const upstreamTitle = computed(() => {
   const state = upstreamHasUpdate.value
@@ -717,12 +742,22 @@ const upstreamTitle = computed(() => {
   return `${t('version.upstreamLabel')} v${upstreamBaseVersion.value}：${state}`
 })
 const forkBadgeText = computed(
-  () => currentVersion.value.match(/-(klno\.\d+)$/)?.[1] ?? `v${currentVersion.value}`
+  () => currentVersion.value.match(/-(klno\.\d+)/)?.[1] ?? `v${currentVersion.value}`
 )
+// 本地补丁版 X.Y.Z-klno.N-cares.M：二开只显示到 klno 段，补丁序号单独一块。
+const forkVersion = computed(() => currentVersion.value.replace(/-cares\.\d+$/, ''))
 const forkTitle = computed(
   () =>
-    `${t('version.forkLabel')} v${currentVersion.value}：${hasUpdate.value ? t('version.updateAvailable') : t('version.upToDate')}`
+    `${t('version.forkLabel')} v${forkVersion.value}：${hasUpdate.value ? t('version.updateAvailable') : t('version.upToDate')}`
 )
+const caresBadgeText = computed(() => currentVersion.value.match(/-(cares\.\d+)$/)?.[1] ?? '')
+const caresHasUpdate = computed(() => caresVersion.value?.has_update === true)
+const caresTitle = computed(() => {
+  const state = caresHasUpdate.value
+    ? t('version.caresUpdateAvailable', { version: caresVersion.value?.latest_version ?? '' })
+    : t('version.caresUpToDate')
+  return `${t('version.caresLabel')} v${currentVersion.value}：${state}`
+})
 
 // Update process states (local to this component)
 const updating = ref(false)
