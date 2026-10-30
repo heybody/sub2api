@@ -59,7 +59,10 @@ export default {
     upstreamLabel: '上游',
     forkLabel: '二开',
     upstreamUpdateAvailable: '上游已发布 v{version}，这里只提示，升级要等二开跟进',
-    upstreamUpToDate: '上游已是最新版本'
+    upstreamUpToDate: '上游已是最新版本',
+    caresLabel: '本地补丁',
+    caresUpdateAvailable: '补丁版已发布 v{version}，按 SJ 升级流程更新（不支持一键升级）',
+    caresUpToDate: '补丁版已是最新'
   },
 
   // Recharge / Subscription Page
